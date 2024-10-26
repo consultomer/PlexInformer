@@ -9,19 +9,36 @@ from datetime import time
 tautulli_url = os.environ.get("TAUTULLI_URL")
 tautulli_api = os.environ.get("TAUTULLI_API_KEY")
 
+# Configuration for Jellyfin
+jelly_url = os.environ.get("JELLY_URL")
+jelly_api = os.environ.get("JELLY_API_KEY")
 # Configuration for Discord Bot
 token = os.environ.get("DISCORD_BOT_TOKEN")
 prefix = os.environ.get("DISCORD_BOT_PREFIX")
-print(f"Token: {token}")
-print(f"Prefix: {prefix}")
-print(f"Tautulli URL: {tautulli_url}")
-print(f"Tautulli API Key: {tautulli_api}")
+
+
 intents = discord.Intents.default()
 intents.message_content = True  # Ensure this is set to True to receive message content
 intents.guilds = True  # Needed for guild/channel management
 
 # Create an instance of a Bot with the specified intents
 bot = commands.Bot(command_prefix=prefix, intents=intents)
+
+
+def get_jelly_users():
+    """Fetches the list of Jellyfin users from the Jellyfin API."""
+    headers = {
+        "X-Emby-Token": f"{jelly_api}",
+        "Accept": 'application/json, profile="PascalCase"',
+    }
+    try:
+        response = requests.get(f"{jelly_url}/users", headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        return data
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching Jellyfin users: {e}")
+        return []
 
 
 def get_tautulli_stats(endpoint, params=None):
@@ -91,8 +108,14 @@ async def stats_command(ctx):
 async def total_users_command(ctx):
     """Command to fetch and send the total number of users."""
     users_stats = get_tautulli_stats("get_users")
-    total_users = len(users_stats["response"]["data"])
-    await ctx.send(f"Total Number of Users: {total_users}")
+    plex_users = len(users_stats["response"]["data"])
+    jelly_users = len(get_jelly_users())
+    stats_message = (
+        f"Total Number of Plex Users: {plex_users}\n"
+        f"Total Number of Jelly Users: {jelly_users}\n"
+        f"Total Number of Users: {plex_users + jelly_users}"
+    )
+    await ctx.send(stats_message)
 
 
 @tasks.loop(time=time(0, 0, 0))  # Runs daily at midnight
